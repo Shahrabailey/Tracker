@@ -1,4 +1,4 @@
-	<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de" class="dark">
 <head>
   <meta charset="UTF-8">
@@ -117,7 +117,11 @@
           <button onclick="toggleMenu()" class="p-2.5 rounded-xl border border-gray-200 dark:border-darkborder bg-white dark:bg-darkcard text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             <i data-lucide="sliders" class="w-4 h-4"></i>
           </button>
-          <div id="dropMenu" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-darkcard border border-gray-200 dark:border-darkborder rounded-2xl shadow-xl py-2 z-50">
+          <div id="dropMenu" class="hidden absolute right-0 mt-2 w-64 bg-white dark:bg-darkcard border border-gray-200 dark:border-darkborder rounded-2xl shadow-xl py-2 z-50">
+            <button onclick="exportForGitHub()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/30 flex items-center gap-2.5">
+              <i data-lucide="cloud-upload" class="w-4 h-4 text-brand-500"></i> Für GitHub speichern (index.html)
+            </button>
+            <div class="border-t border-gray-100 dark:border-darkborder my-1"></div>
             <button onclick="cleanGhostEntries()" class="w-full text-left px-4 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2.5">
               <i data-lucide="sparkles" class="w-4 h-4 text-rose-500"></i> Geister-Einträge bereinigen
             </button>
@@ -1264,6 +1268,30 @@
         updateTitleUI();
       }
       closeRenameModal();
+    }
+
+    function exportForGitHub() {
+      toggleMenu();
+      if (!applications || applications.length === 0) {
+        showToast('Keine Bewerbungen zum Speichern vorhanden.', 'error');
+        return;
+      }
+
+      // We bundle all current applications directly into the file's initial state
+      const payload = {
+        applications: applications,
+        userSkills: userSkills,
+        currentAppName: currentAppName,
+        exportDate: new Date().toISOString()
+      };
+
+      let htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      // Inject data permanently into the EMBEDDED_DATA variable so it loads everywhere
+      htmlContent = htmlContent.replace(/let EMBEDDED_DATA = [^;]+;/, `let EMBEDDED_DATA = ${JSON.stringify(payload)};`);
+
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+      downloadBlob(blob, 'index.html');
+      showToast('index.html mit all Ihren Bewerbungen heruntergeladen! Jetzt bei GitHub hochladen.', 'success');
     }
 
     function exportJSON() {
