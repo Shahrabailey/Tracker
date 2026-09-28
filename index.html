@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+	<!DOCTYPE html>
 <html lang="de" class="dark">
 <head>
   <meta charset="UTF-8">
@@ -102,11 +102,6 @@
           <span class="hidden md:inline">Meine Skills</span>
         </button>
 
-        <button onclick="exportSnapshotHTML()" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/20 transition-all transform active:scale-95" title="Erzeugt eine fertige HTML-Datei mit all Ihren echten Daten zum Verschicken via Mail, WhatsApp oder AirDrop">
-          <i data-lucide="share-2" class="w-4 h-4"></i>
-          <span class="hidden sm:inline">Mit Daten teilen</span>
-        </button>
-
         <button onclick="openFormModal()" class="flex items-center gap-2 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-600 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-brand-500/20 transition-all transform active:scale-95">
           <i data-lucide="plus-circle" class="w-4 h-4"></i>
           <span>Neue Bewerbung</span>
@@ -123,10 +118,6 @@
             <i data-lucide="sliders" class="w-4 h-4"></i>
           </button>
           <div id="dropMenu" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-darkcard border border-gray-200 dark:border-darkborder rounded-2xl shadow-xl py-2 z-50">
-            <button onclick="exportSnapshotHTML()" class="w-full text-left px-4 py-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center gap-2.5">
-              <i data-lucide="share-2" class="w-4 h-4 text-emerald-500"></i> Als HTML mit Daten teilen
-            </button>
-            <div class="border-t border-gray-100 dark:border-darkborder my-1"></div>
             <button onclick="cleanGhostEntries()" class="w-full text-left px-4 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2.5">
               <i data-lucide="sparkles" class="w-4 h-4 text-rose-500"></i> Geister-Einträge bereinigen
             </button>
@@ -1276,8 +1267,81 @@
     }
 
     function exportJSON() {
-      const blob = new Blob([JSON.stringify(applications, null, 2)], { type: 'application/json' });
-      downloadBlob(blob, `${currentAppName.replace(/\s+/g, '_')}_Backup.json`);
+      toggleMenu();
+      if (!applications || applications.length === 0) {
+        showToast('Keine Bewerbungen zum Exportieren vorhanden.', 'error');
+        return;
+      }
+      const backupPayload = {
+        platformName: currentAppName,
+        exportTimestamp: new Date().toISOString(),
+        userSkills: userSkills,
+        applications: applications
+      };
+      const jsonStr = JSON.stringify(backupPayload, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+      const fileName = `${currentAppName.replace(/\s+/g, '_')}_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      downloadBlob(blob, fileName);
+      showToast('JSON-Backup erfolgreich heruntergeladen!', 'success');
+    }
+
+    function exportCSV() {
+      toggleMenu();
+      if (!applications || applications.length === 0) {
+        showToast('Keine Bewerbungen zum Exportieren vorhanden.', 'error');
+        return;
+      }
+      let csv = '\uFEFFUnternehmen;Position;Status;Bewerbungsdatum;Gehalt;Dokument;Ansprechpartner;Original_Link;Anzeigentext\n';
+      applications.forEach(a => {
+        const docName = (a.document && a.document.name) ? a.document.name : (a.cvVersion || '');
+        const cleanAd = (a.adText || '').replace(/"/g, '""').replace(/\r?\n|\r/g, ' ');
+        csv += `"${(a.company || '').replace(/"/g, '""')}";"${(a.position || '').replace(/"/g, '""')}";"${(a.status || '').replace(/"/g, '""')}";"${a.appliedDate || ''}";"${a.salary || ''}";"${docName}";"${(a.contact || '').replace(/"/g, '""')}";"${a.jobUrl || ''}";"${cleanAd}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      downloadBlob(blob, `${currentAppName.replace(/\s+/g, '_')}_Export.csv`);
+      showToast('CSV-Export für Excel heruntergeladen!', 'success');
+    }
+
+    function triggerImport() {
+      toggleMenu();
+      const input = document.getElementById('importFileInput');
+      input.value = '';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const parsed = JSON.parse(evt.target.result);
+            let importedApps = [];
+            if (Array.isArray(parsed)) {
+              importedApps = parsed;
+            } else if (parsed && Array.isArray(parsed.applications)) {
+              importedApps = parsed.applications;
+              if (parsed.userSkills && Array.isArray(parsed.userSkills)) {
+                userSkills = parsed.userSkills;
+                localStorage.setItem('jobpulse_user_skills', JSON.stringify(userSkills));
+              }
+              if (parsed.platformName) {
+                currentAppName = parsed.platformName;
+                localStorage.setItem('jobpulse_app_name', currentAppName);
+                updateTitleUI();
+              }
+            } else {
+              showToast('Unbekanntes Backup-Format.', 'error');
+              return;
+            }
+            applications = importedApps.filter(a => a && (a.company || a.position));
+            persistData();
+            renderApp();
+            showToast(`${applications.length} Bewerbungen erfolgreich wiederhergestellt!`, 'success');
+          } catch(err) {
+            showToast('Fehler: Die Datei konnte nicht gelesen werden.', 'error');
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
     }
 
     function exportSnapshotHTML() {
